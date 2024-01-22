@@ -7,10 +7,12 @@ import (
 	"io/ioutil"
 	"net/http"
 	"regexp"
+	"time"
 
 	"kafka-demo/demo/internal/svc"
 	"kafka-demo/demo/internal/types"
 
+	cron "github.com/robfig/cron"
 	"github.com/zeromicro/go-zero/core/logx"
 
 	kafka "github.com/segmentio/kafka-go"
@@ -20,6 +22,16 @@ type DemoLogic struct {
 	logx.Logger
 	ctx    context.Context
 	svcCtx *svc.ServiceContext
+}
+
+type CronMetaData struct {
+	invoked bool
+	crr     *cron.Cron
+}
+
+var crrData = &CronMetaData{
+	invoked: true,
+	crr:     cron.New(),
 }
 
 func NewDemoLogic(ctx context.Context, svcCtx *svc.ServiceContext) *DemoLogic {
@@ -33,6 +45,42 @@ func NewDemoLogic(ctx context.Context, svcCtx *svc.ServiceContext) *DemoLogic {
 func (l *DemoLogic) Demo(req *types.Request) (resp *types.Response, err error) {
 	// todo: add your logic here and delete this line
 
+	if req.Name == "cancel" && crrData.invoked == true {
+		crrData.invoked = false
+		crrData.crr.Stop()
+		logx.Info("cancel cron job")
+	}
+
+	if req.Name == "cron" && crrData.invoked == false {
+		crrData.invoked = true
+		crrData.crr.AddFunc("0 */2 * * *", func() {
+			fetchRSSContent(l.ctx)
+			logx.Info("fetch rss per 2 hour")
+		})
+
+		crrData.crr.Start()
+
+		logx.Info("start cron job")
+
+		time.Sleep(time.Second * 3)
+	}
+
+	if req.Name == "once" {
+		err = fetchRSSContent(l.ctx)
+	}
+
+	// Run the web server.
+	resp = new(types.Response)
+	if err != nil {
+		resp.Message = err.Error()
+		return
+	}
+	resp.Message = req.Name
+	return
+}
+
+func fetchRSSContent(ctx context.Context) (err error) {
+	logx.Info("fetch rss content")
 	topic := "kafka-demo-topic"
 	kafkaWriter := getKafkaWriter(topic)
 
@@ -56,19 +104,13 @@ func (l *DemoLogic) Demo(req *types.Request) (resp *types.Response, err error) {
 
 	}
 
-	err = kafkaWriter.WriteMessages(l.ctx, kmsg...)
+	err = kafkaWriter.WriteMessages(ctx, kmsg...)
 
 	if err != nil {
-		resp = new(types.Response)
-		resp.Message = err.Error()
-		logx.Error(resp.Message)
-		return
+		logx.Error("error occured : ", err)
+		return err
 	}
-
-	// Run the web server.
-	resp = new(types.Response)
-	resp.Message = req.Name
-	return
+	return nil
 }
 
 func getKafkaWriter(topic string) *kafka.Writer {

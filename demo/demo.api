@@ -1,7 +1,7 @@
 syntax = "v1"
 
 type Request {
-	Name string `path:"name,options=you|me"`
+	Name string `path:"name,options=cron|cancel|once"`
 }
 
 type Response {
@@ -10,5 +10,5 @@ type Response {
 
 service demo-api {
 	@handler DemoHandler
-	get /from/:name(Request) returns (Response)
+	get /rss-fetch/:name(Request) returns (Response)
 }

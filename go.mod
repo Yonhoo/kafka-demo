@@ -3,6 +3,7 @@ module kafka-demo
 go 1.21.1
 
 require (
+	github.com/robfig/cron v1.2.0
 	github.com/segmentio/kafka-go v0.4.47
 	github.com/zeromicro/go-zero v1.6.1
 
